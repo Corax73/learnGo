@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"net/mail"
 )
 
 type Rsvp struct {
@@ -42,6 +43,15 @@ type formData struct {
 	Errors []string
 }
 
+func validMailAddress(address string) bool {
+	_, err := mail.ParseAddress(address)
+	resp := false
+	if err == nil {
+		resp = true
+	}
+	return resp
+}
+
 func formHandler(writer http.ResponseWriter, request *http.Request) {
 	if request.Method == http.MethodGet {
 		templates["form"].Execute(writer, formData{
@@ -49,22 +59,26 @@ func formHandler(writer http.ResponseWriter, request *http.Request) {
 		})
 	} else if request.Method == http.MethodPost {
 		request.ParseForm()
-		responseData := Rsvp{
-			Name:       request.Form["name"][0],
-			Email:      request.Form["email"][0],
-			Phone:      request.Form["phone"][0],
-			WillAttend: request.Form["willattend"][0] == "true",
-		}
-
+		var responseData Rsvp
 		errors := []string{}
-		if responseData.Name == "" {
-			errors = append(errors, "Please enter your name")
-		}
-		if responseData.Email == "" {
-			errors = append(errors, "Please enter your email address")
-		}
-		if responseData.Phone == "" {
-			errors = append(errors, "Please enter your phone number")
+		if validMailAddress(request.Form["email"][0]) {
+			responseData = Rsvp{
+				Name:       request.Form["name"][0],
+				Email:      request.Form["email"][0],
+				Phone:      request.Form["phone"][0],
+				WillAttend: request.Form["willattend"][0] == "true",
+			}
+			if responseData.Name == "" {
+				errors = append(errors, "Please enter your name")
+			}
+			if responseData.Email == "" {
+				errors = append(errors, "Please enter your email address")
+			}
+			if responseData.Phone == "" {
+				errors = append(errors, "Please enter your phone number")
+			}
+		} else {
+			errors = append(errors, "Please enter your correct email address")
 		}
 		if len(errors) > 0 {
 			templates["form"].Execute(writer, formData{
