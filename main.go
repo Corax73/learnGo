@@ -5,6 +5,8 @@ import (
 	"html/template"
 	"net/http"
 	"net/mail"
+	"os"
+	"time"
 )
 
 type Rsvp struct {
@@ -87,11 +89,30 @@ func formHandler(writer http.ResponseWriter, request *http.Request) {
 		} else {
 			responses = append(responses, &responseData)
 			if responseData.WillAttend {
+				writeInFile(responseData)
 				templates["thanks"].Execute(writer, responseData.Name)
 			} else {
 				templates["sorry"].Execute(writer, responseData.Name)
 			}
 		}
+	}
+}
+func writeInFile(data Rsvp) {
+	filePath := "temp/test.txt"
+	note := data.Name + " " + data.Email + " " + data.Phone + " created_at: " + time.Now().Format(time.RFC822)
+	if _, err := os.Stat(filePath); err != nil {
+		errors := os.WriteFile(filePath, []byte(note), 0666)
+		if errors != nil {
+			fmt.Println(errors)
+		}
+	} else {
+		file, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY, 0600)
+		if err != nil {
+			fmt.Println(err)
+		}
+		defer file.Close()
+		file.WriteString("\n")
+		file.WriteString(note)
 	}
 }
 
