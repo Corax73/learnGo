@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -116,7 +118,43 @@ func writeInFile(data Rsvp) {
 	}
 }
 
+func request(apiKey string) {
+	resp, err := http.Get("https://api.openweathermap.org/data/2.5/weather?id=479123&units=metric&appid=" + apiKey + "&lang=ru")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer resp.Body.Close()
+	bs := make([]byte, 1014)
+	n, err := resp.Body.Read(bs)
+	if err != nil {
+		filePath := "temp/weather.txt"
+		note := string(bs[:n])
+		if _, err := os.Stat(filePath); err != nil {
+			errors := os.WriteFile(filePath, []byte(note), 0666)
+			if errors != nil {
+				fmt.Println(errors)
+			}
+		}
+	}
+}
+
+func readFromFile() string {
+	f, err := os.Open("temp/apiKey.txt")
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+	wr := bytes.Buffer{}
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		wr.WriteString(sc.Text())
+	}
+	return wr.String()
+}
+
 func main() {
+	request(readFromFile())
 	loadTemplates()
 
 	http.HandleFunc("/", welcomeHandler)
