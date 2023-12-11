@@ -3,12 +3,18 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"database/sql"
+	"encoding/csv"
 	"fmt"
 	"html/template"
+	"log"
 	"net/http"
 	"net/mail"
 	"os"
+	"strconv"
 	"time"
+
+	_ "github.com/go-sql-driver/mysql"
 )
 
 type Rsvp struct {
@@ -153,10 +159,61 @@ func readFromFile() string {
 	return wr.String()
 }
 
+var database *sql.DB
+
+type Book struct {
+	Id     int
+	Title  string
+	Author string
+}
+
+func sqlCon() []Book {
+	db, err := sql.Open("mysql", "root:@/library")
+	fmt.Println(err)
+	books := []Book{}
+	if err == nil {
+		db.SetConnMaxLifetime(time.Minute * 3)
+		db.SetMaxOpenConns(10)
+		db.SetMaxIdleConns(10)
+		database = db
+		rows, err := database.Query("select id, title, author from library.Books limit 10000")
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				book := Book{}
+				err := rows.Scan(&book.Id, &book.Title, &book.Author)
+				if err != nil {
+					fmt.Println(err)
+					continue
+				}
+				books = append(books, book)
+			}
+			return books
+		}
+	}
+	return books
+}
+
+func writeInCsv(books []Book) {
+	file, err := os.Create("temp/books.csv")
+	if err == nil {
+		defer file.Close()
+		writer := csv.NewWriter(file)
+		defer writer.Flush()
+		for _, book := range books {
+			var title []string
+			title = append(title, strconv.Itoa(book.Id), book.Title, book.Author)
+			if err := writer.Write(title); err != nil {
+				log.Fatalln("error writing record to file", err)
+			}
+		}
+	}
+}
+
 func main() {
 	request(readFromFile())
 	loadTemplates()
-
+	writeInCsv(sqlCon())
 	http.HandleFunc("/", welcomeHandler)
 	http.HandleFunc("/list", listHandler)
 	http.HandleFunc("/form", formHandler)
